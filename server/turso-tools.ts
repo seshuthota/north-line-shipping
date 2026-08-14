@@ -20,14 +20,15 @@ export async function executeTursoTool(name: string, args: Record<string, unknow
     const values = query.split(',').map((value) => value.trim()).filter(Boolean).slice(0, 25);
     const results = await Promise.all(values.map(async (value) => {
       const mode = String(args.mode ?? 'auto');
+      const fields = 'waybill, customer_reference, status, origin, destination, service_name, eta_text';
       const found = await rows(mode === 'reference'
-        ? 'SELECT * FROM shipments WHERE customer_reference = ? COLLATE NOCASE'
-        : mode === 'waybill' ? 'SELECT * FROM shipments WHERE waybill = ? COLLATE NOCASE'
-          : 'SELECT * FROM shipments WHERE waybill = ? COLLATE NOCASE OR customer_reference = ? COLLATE NOCASE', mode === 'auto' ? [value, value] : [value]);
+        ? `SELECT ${fields} FROM shipments WHERE customer_reference = ? COLLATE NOCASE`
+        : mode === 'waybill' ? `SELECT ${fields} FROM shipments WHERE waybill = ? COLLATE NOCASE`
+          : `SELECT ${fields} FROM shipments WHERE waybill = ? COLLATE NOCASE OR customer_reference = ? COLLATE NOCASE`, mode === 'auto' ? [value, value] : [value]);
       if (!found[0]) return { found: false, query: value };
       const shipment = found[0];
       const events = await rows('SELECT title, location, event_time_text AS time, is_complete AS complete FROM tracking_events WHERE waybill = ? ORDER BY sequence', [text(shipment, 'waybill')]);
-      return { found: true, id: text(shipment, 'waybill'), reference: text(shipment, 'customer_reference'), status: text(shipment, 'status'), origin: text(shipment, 'origin'), destination: text(shipment, 'destination'), service: text(shipment, 'service_name'), eta: text(shipment, 'eta_text'), recipient: text(shipment, 'recipient_name'), events: events.map((event) => ({ ...event, complete: Boolean(event.complete) })), href: `/track?q=${encodeURIComponent(text(shipment, 'waybill'))}` };
+      return { found: true, id: text(shipment, 'waybill'), reference: text(shipment, 'customer_reference'), status: text(shipment, 'status'), origin: text(shipment, 'origin'), destination: text(shipment, 'destination'), service: text(shipment, 'service_name'), eta: text(shipment, 'eta_text'), events: events.map((event) => ({ ...event, complete: Boolean(event.complete) })), href: `/track?q=${encodeURIComponent(text(shipment, 'waybill'))}` };
     }));
     const demoWaybills = (await rows('SELECT waybill AS id, customer_reference AS reference, status FROM shipments')).map((row) => row);
     const output = { matches: results.filter((item) => item.found).length, results, demoWaybills: results.some((item) => !item.found) ? demoWaybills : undefined };
