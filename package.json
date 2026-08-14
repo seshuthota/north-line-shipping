@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "db:seed": "node scripts/seed-turso.mjs",
+    "db:verify": "node scripts/verify-turso.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
