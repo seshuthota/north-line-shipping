@@ -1,6 +1,6 @@
-import { locations, news, services, shipments } from '../data';
-import { calculateVolumetricWeight, createQuotes } from '../shipping';
-import type { QuoteRequest } from '../types';
+import { locations, news, services, shipments } from '../data.js';
+import { calculateVolumetricWeight, createQuotes } from '../shipping.js';
+import type { QuoteRequest } from '../types.js';
 
 export type AssistantToolName =
   | 'track_shipment'

@@ -1,7 +1,7 @@
 import type { ChatFunctionTool, ChatMessages, ChatResult } from '@openrouter/sdk/models';
-import { polishReply } from '../src/assistant/replies.ts';
-import { ASSISTANT_TOOLS, executeAssistantTool, type AssistantToolCall } from '../src/assistant/tools.ts';
-import { CHAT_MODEL, STT_MODEL, TTS_MODEL, TTS_VOICE, isAssistantConfigured, openRouterApp, requireOpenRouter } from './openrouter.ts';
+import { polishReply } from '../src/assistant/replies.js';
+import { ASSISTANT_TOOLS, executeAssistantTool, type AssistantToolCall } from '../src/assistant/tools.js';
+import { CHAT_MODEL, STT_MODEL, TTS_MODEL, TTS_VOICE, isAssistantConfigured, openRouterApp, requireOpenRouter } from './openrouter.js';
 
 export { isAssistantConfigured };
 

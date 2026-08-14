@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { loadEnv, type Plugin } from 'vite';
-import { HISTORY_LIMIT, isAssistantConfigured, runAssistant, speakText, transcribeAudio, type ChatTurn } from './assistant-handler.ts';
+import { HISTORY_LIMIT, isAssistantConfigured, runAssistant, speakText, transcribeAudio, type ChatTurn } from './assistant-handler.js';
 
 function loadAssistantEnv(root: string, mode: string) {
   const env = loadEnv(mode, root, '');

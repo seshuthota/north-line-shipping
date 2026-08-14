@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GET, POST } from './chat';
+import { GET, POST } from './chat.js';
 
 describe('Vercel chat function', () => {
   it('reports configuration without exposing the API key', async () => {

@@ -1,5 +1,5 @@
-import { speakResponse, errorPayload, readJson, apiLimits } from '../server/assistant-api.ts';
-import { clientAddress, takeRequest } from '../server/request-limit.ts';
+import { speakResponse, errorPayload, readJson, apiLimits } from '../server/assistant-api.js';
+import { clientAddress, takeRequest } from '../server/request-limit.js';
 
 export async function POST(request: Request) {
   const limit = takeRequest(clientAddress(request.headers));

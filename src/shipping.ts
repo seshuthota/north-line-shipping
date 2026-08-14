@@ -1,4 +1,4 @@
-import type { QuoteRequest, QuoteResult } from './types';
+import type { QuoteRequest, QuoteResult } from './types.js';
 
 export function calculateVolumetricWeight(length = 0, width = 0, height = 0) {
   return Math.max(0, (length * width * height) / 5000);

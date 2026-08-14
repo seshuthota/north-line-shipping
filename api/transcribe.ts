@@ -1,5 +1,5 @@
-import { transcribeResponse, errorPayload, readJson, apiLimits } from '../server/assistant-api.ts';
-import { clientAddress, takeRequest } from '../server/request-limit.ts';
+import { transcribeResponse, errorPayload, readJson, apiLimits } from '../server/assistant-api.js';
+import { clientAddress, takeRequest } from '../server/request-limit.js';
 
 const headers = { 'Cache-Control': 'no-store' };
 

@@ -1,4 +1,4 @@
-import type { ServiceLocation, ShipmentRecord, ShippingService } from './types';
+import type { ServiceLocation, ShipmentRecord, ShippingService } from './types.js';
 
 export const shipments: ShipmentRecord[] = [
   {

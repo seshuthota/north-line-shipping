@@ -1,4 +1,4 @@
-import type { AssistantToolCall } from './tools';
+import type { AssistantToolCall } from './tools.js';
 
 function rupees(value: number) {
   return `₹${value.toLocaleString('en-IN')}`;

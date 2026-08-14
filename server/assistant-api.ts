@@ -1,4 +1,4 @@
-import { HISTORY_LIMIT, isAssistantConfigured, runAssistant, speakText, transcribeAudio, type ChatTurn } from './assistant-handler.ts';
+import { HISTORY_LIMIT, isAssistantConfigured, runAssistant, speakText, transcribeAudio, type ChatTurn } from './assistant-handler.js';
 
 const CHAT_BODY_LIMIT = 100_000;
 const AUDIO_BODY_LIMIT = 6_000_000;
