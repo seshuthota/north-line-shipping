@@ -9,7 +9,9 @@ import {
   Weight, X, Zap,
 } from 'lucide-react';
 import { locations, news, quickSearch, services, shipments } from './data';
-import type { QuoteRequest, QuoteResult, ShipmentRecord } from './types';
+import type { QuoteResult, ShipmentRecord } from './types';
+import { calculateVolumetricWeight, createQuotes } from './shipping';
+import { Assistant, AssistantLaunch } from './assistant/Assistant';
 
 const navItems = [
   { label: 'Track', to: '/track' }, { label: 'Ship', to: '/ship' },
@@ -182,7 +184,7 @@ function RouteMapGraphic() {
 
 function HomePage() {
   return <>
-    <section className="home-hero"><div className="container hero-grid"><div className="hero-copy"><span className="eyebrow light">INDIA’S EXPRESS NETWORK</span><h1>Every delivery<br />moves a <em>promise.</em></h1><p>From one important document to an entire supply chain—move it with speed, visibility and confidence.</p><TrackingInput /><div className="hero-proof"><div className="avatar-stack"><span>JD</span><span>AS</span><span>RM</span></div><p><strong>56,400+</strong> locations served across India</p></div></div><RouteMapGraphic /></div></section>
+    <section className="home-hero"><div className="container hero-grid"><div className="hero-copy"><span className="eyebrow light">INDIA’S EXPRESS NETWORK</span><h1>Every delivery<br />moves a <em>promise.</em></h1><p>From one important document to an entire supply chain—move it with speed, visibility and confidence.</p><TrackingInput /><AssistantLaunch label="Or ask the assistant" /><div className="hero-proof"><div className="avatar-stack"><span>JD</span><span>AS</span><span>RM</span></div><p><strong>56,400+</strong> locations served across India</p></div></div><RouteMapGraphic /></div></section>
     <section className="quick-actions"><div className="container quick-grid">
       <Link to="/ship#quote"><span className="quick-icon coral"><Calculator /></span><div><strong>Get price & transit time</strong><small>Compare the best way to send</small></div><ArrowRight /></Link>
       <Link to="/locations#location-finder"><span className="quick-icon teal"><LocateFixed /></span><div><strong>Find a Northline location</strong><small>Pickup, delivery and retail centres</small></div><ArrowRight /></Link>
@@ -223,21 +225,6 @@ function TrackPage() {
     {searched && results.length > 0 && <div ref={resultsRef} id="track-results" className="results-stack" tabIndex={-1}>{results.map((record) => <TrackingResult key={record.id} record={record} />)}</div>}
     {searched && results.length === 0 && <div ref={resultsRef} id="track-results" className="empty-state" tabIndex={-1}><PackageSearch /><h2>We couldn’t find that shipment</h2><p>Check the number and try again, or use one of the demo waybills above.</p><button className="button button-outline" onClick={() => { setInput('NL123456789'); setSearched(false); }}>Use a sample shipment</button></div>}
     </div></section></>;
-}
-
-export function calculateVolumetricWeight(length = 0, width = 0, height = 0) { return Math.max(0, (length * width * height) / 5000); }
-export function createQuotes(request: QuoteRequest): QuoteResult[] {
-  const chargeable = Math.max(request.weight, calculateVolumetricWeight(request.length, request.width, request.height));
-  const base = request.mode === 'international' ? 1750 : 280;
-  if (request.mode === 'international') return [
-    { service: 'OrbitLink Worldwide', eta: '2–4 business days', price: Math.round(base + chargeable * 510), badge: 'Fastest', description: 'Time-definite international door-to-door delivery.' },
-    { service: 'Express Easy', eta: '4–6 business days', price: Math.round(base * .8 + chargeable * 390), description: 'Convenient global shipping for documents and parcels.' },
-  ];
-  return [
-    { service: 'Domestic Priority', eta: 'Next business day', price: Math.round(base + chargeable * 118), badge: 'Fastest', description: 'Air express with real-time tracking and proof of delivery.' },
-    { service: 'Northline Surface', eta: '3–5 business days', price: Math.round(base * .55 + chargeable * 64), badge: 'Best value', description: 'Dependable day-definite delivery through our ground network.' },
-    { service: 'Smart Box', eta: '2–4 business days', price: Math.round(520 + chargeable * 42), description: 'Simple all-inclusive shipping with secure packaging.' },
-  ];
 }
 
 function ShipPage() {
@@ -360,7 +347,8 @@ function LegalPage() { const { page = 'terms' } = useParams(); const content = l
 function NotFound() { return <section className="not-found"><div className="container"><span>404</span><h1>This route missed its connection.</h1><p>Let’s get you back to something useful.</p><div className="button-row"><Link className="button" to="/">Return home</Link><Link className="button button-outline" to="/track#track-form">Track a shipment</Link></div></div></section>; }
 
 export default function App() {
-  return <Routes>
+  return <>
+    <Routes>
     <Route path="/account"><AccountPage /></Route>
     <Route path="/"><Layout><HomePage /></Layout></Route>
     <Route path="/track"><Layout><TrackPage /></Layout></Route>
@@ -375,5 +363,7 @@ export default function App() {
     <Route path="/news"><Layout><NewsPage /></Layout></Route>
     <Route path="/legal/:page"><Layout><LegalPage /></Layout></Route>
     <Route><Layout><NotFound /></Layout></Route>
-  </Routes>;
+  </Routes>
+    <Assistant />
+  </>;
 }

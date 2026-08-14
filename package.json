@@ -13,12 +13,14 @@
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.6",
     "@fontsource/manrope": "^5.2.6",
+    "@openrouter/sdk": "^1.2.35",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "wouter": "^3.10.0"
   },
   "devDependencies": {
+    "@types/node": "^22.15.3",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^6.0.5",

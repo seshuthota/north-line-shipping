@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { calculateVolumetricWeight, createQuotes } from './App';
+import { calculateVolumetricWeight, createQuotes } from './shipping';
 
 describe('shipping calculations', () => {
   it('calculates volumetric weight using the 5000 divisor', () => {
