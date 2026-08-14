@@ -23,6 +23,10 @@ export function errorPayload(error: unknown): ApiError {
     ? Number((error as { status: number }).status) || 500
     : 500;
   const message = error instanceof Error ? error.message : 'Assistant request failed';
+  const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code ?? '') : '';
+  if (code === 'turso_not_configured') {
+    return apiError(503, 'The assistant database is not configured. Add TURSO_DATABASE_URL and TURSO_AUTH_TOKEN in the deployment environment.', 'turso_not_configured');
+  }
   if (status === 503) {
     return apiError(503, 'The assistant is not configured. Add OPENROUTER_API_KEY in the deployment environment.', 'not_configured');
   }

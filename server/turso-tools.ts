@@ -7,7 +7,7 @@ function database() {
   if (client) return client;
   const url = process.env.TURSO_DATABASE_URL;
   const authToken = process.env.TURSO_AUTH_TOKEN;
-  if (!url || !authToken) throw Object.assign(new Error('TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are not configured'), { status: 503 });
+  if (!url || !authToken) throw Object.assign(new Error('TURSO_DATABASE_URL and TURSO_AUTH_TOKEN are not configured'), { status: 503, code: 'turso_not_configured' });
   client = createClient({ url, authToken });
   return client;
 }
