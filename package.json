@@ -7,12 +7,14 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
+    "db:seed": "node scripts/seed-turso.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.2.6",
     "@fontsource/manrope": "^5.2.6",
+    "@libsql/client": "^0.17.4",
     "@openrouter/sdk": "^1.2.35",
     "lucide-react": "^0.468.0",
     "react": "^19.0.0",

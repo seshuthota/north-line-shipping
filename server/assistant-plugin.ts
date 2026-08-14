@@ -5,6 +5,8 @@ import { HISTORY_LIMIT, isAssistantConfigured, runAssistant, speakText, transcri
 function loadAssistantEnv(root: string, mode: string) {
   const env = loadEnv(mode, root, '');
   if (env.OPENROUTER_API_KEY) process.env.OPENROUTER_API_KEY = env.OPENROUTER_API_KEY;
+  if (env.TURSO_DATABASE_URL) process.env.TURSO_DATABASE_URL = env.TURSO_DATABASE_URL;
+  if (env.TURSO_AUTH_TOKEN) process.env.TURSO_AUTH_TOKEN = env.TURSO_AUTH_TOKEN;
 }
 
 function readBody(req: IncomingMessage) {

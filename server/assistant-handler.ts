@@ -1,6 +1,7 @@
 import type { ChatFunctionTool, ChatMessages, ChatResult } from '@openrouter/sdk/models';
 import { polishReply } from '../src/assistant/replies.js';
-import { ASSISTANT_TOOLS, executeAssistantTool, type AssistantToolCall } from '../src/assistant/tools.js';
+import { ASSISTANT_TOOLS, type AssistantToolCall } from '../src/assistant/tools.js';
+import { executeTursoTool } from './turso-tools.js';
 import { CHAT_MODEL, STT_MODEL, TTS_MODEL, TTS_VOICE, isAssistantConfigured, openRouterApp, requireOpenRouter } from './openrouter.js';
 
 export { isAssistantConfigured };
@@ -131,7 +132,7 @@ export async function runAssistant(history: ChatTurn[]): Promise<AssistantReply>
       } catch {
         parsed = {};
       }
-      const executed = executeAssistantTool(call.function.name, parsed);
+      const executed = await executeTursoTool(call.function.name, (parsed && typeof parsed === 'object' ? parsed : {}) as Record<string, unknown>);
       tools.push(executed.call);
       messages.push({
         role: 'tool',
