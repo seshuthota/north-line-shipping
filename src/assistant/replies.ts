@@ -70,9 +70,17 @@ export function captionForTools(tools: AssistantToolCall[]) {
   return '';
 }
 
+export function isItemEligibilityQuestion(userText: string) {
+  return /\b(can|may|allowed|okay| ok|permitted|accepted)\b.*\b(ship|send|mail|parcel|item)\b|\b(ship|send|mail)\b.*\b(item|motorcycle|battery|perfume|goods?)\b/i.test(userText);
+}
+
+export function shouldDeferItemEligibility(userText: string, tools: AssistantToolCall[]) {
+  return isItemEligibilityQuestion(userText)
+    && tools.some((tool) => tool.name === 'get_shipping_guide');
+}
+
 export function polishReply(reply: string, tools: AssistantToolCall[], userText = '') {
-  if (/\b(can|may|allowed|okay| ok|permitted|accepted)\b.*\b(ship|send|mail|parcel|item)\b|\b(ship|send|mail)\b.*\b(item|motorcycle|battery|perfume|goods?)\b/i.test(userText)
-    && tools.some((tool) => tool.name === 'get_shipping_guide')) {
+  if (shouldDeferItemEligibility(userText, tools)) {
     return 'I can’t confirm whether that item can be shipped. Please contact customer support by email and they’ll let you know.';
   }
   const caption = captionForTools(tools);

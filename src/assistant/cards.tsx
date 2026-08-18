@@ -150,7 +150,18 @@ function SupportCard({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-export function ToolResultCards({ tools }: { tools?: AssistantToolCall[] }) {
+export function SupportFallbackCard() {
+  return (
+    <div className="assist-card">
+      <div className="assist-card-kicker">Customer support</div>
+      <strong>1800 555 0142</strong>
+      <div className="assist-meta"><Clock3 size={13} /> Mon–Sat · 8 AM–8 PM</div>
+      <Link className="assist-card-link" to="/support#contact">Open the support form <ArrowRight size={14} /></Link>
+    </div>
+  );
+}
+
+export function ToolResultCards({ tools, suppressGuides = false }: { tools?: AssistantToolCall[]; suppressGuides?: boolean }) {
   if (!tools?.length) return null;
   return (
     <div className="assist-results">
@@ -161,7 +172,7 @@ export function ToolResultCards({ tools }: { tools?: AssistantToolCall[] }) {
         if (tool.name === 'get_quote') return <QuoteCards key={key} data={data} />;
         if (tool.name === 'track_shipment') return <TrackCards key={key} data={data} />;
         if (tool.name === 'find_locations') return <LocationCard key={key} data={data} />;
-        if (tool.name === 'get_shipping_guide') return <GuideCard key={key} data={data} />;
+        if (tool.name === 'get_shipping_guide') return suppressGuides ? null : <GuideCard key={key} data={data} />;
         if (tool.name === 'lookup_services') return <ServiceCards key={key} data={data} />;
         if (tool.name === 'get_support_info') return <SupportCard key={key} data={data} />;
         return null;

@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useLocation as useWouterLocation } from 'wouter';
 import { ArrowRight, Home, LoaderCircle, MessageCircle, Mic, RotateCcw, Send, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
-import { EmptyLocationNote, ToolResultCards } from './cards';
+import { EmptyLocationNote, SupportFallbackCard, ToolResultCards } from './cards';
+import { shouldDeferItemEligibility } from './replies';
 import type { AssistantToolCall } from './tools';
 
 export const OPEN_ASSISTANT_EVENT = 'northline-open-assistant';
@@ -332,7 +333,8 @@ export function Assistant() {
         {messages.map((message) => (
           <article key={message.id} className={`assistant-bubble ${message.role}`}>
             {message.content && <p>{renderContent(message.content)}</p>}
-            {message.role === 'assistant' && <ToolResultCards tools={message.tools} />}
+            {message.role === 'assistant' && <ToolResultCards tools={message.tools} suppressGuides={shouldDeferItemEligibility(messages[messages.indexOf(message) - 1]?.content || '', message.tools || [])} />}
+            {message.role === 'assistant' && message.content.includes('contact customer support') && !message.tools?.some((tool) => tool.name === 'get_support_info') && <SupportFallbackCard />}
             {message.role === 'assistant' && <EmptyLocationNote tools={message.tools} />}
           </article>
         ))}
