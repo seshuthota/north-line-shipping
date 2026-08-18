@@ -43,9 +43,12 @@ export async function executeTursoTool(name: string, args: Record<string, unknow
     return { output, call: { name: 'get_quote', label: `Quoted ${output.from} → ${output.to}`, output } };
   }
   if (name === 'find_locations') {
-    const query = String(args.query ?? ''); const service = args.service ? String(args.service) : null; const like = `%${query}%`;
-    const locations = await rows(`SELECT DISTINCT l.city, l.pin_code AS pin, l.address, l.opening_hours AS hours, l.phone FROM service_locations l LEFT JOIN location_services ls ON ls.location_id=l.id WHERE (l.city LIKE ? OR l.pin_code LIKE ? OR l.address LIKE ?) AND (? IS NULL OR ? = 'all' OR ls.service_name LIKE ?)`, [like, like, like, service, service?.toLowerCase(), service ? `%${service}%` : null]);
-    const output = { count: locations.length, query, service, locations: locations.map((location) => ({ ...location, href: '/locations#location-finder' })), href: '/locations#location-finder' };
+    const query = String(args.query ?? ''); const service = args.service ? String(args.service) : ''; const like = `%${query}%`;
+    const baseWhere = '(l.city LIKE ? OR l.pin_code LIKE ? OR l.address LIKE ?)';
+    const locations = service && service.toLowerCase() !== 'all'
+      ? await rows(`SELECT DISTINCT l.city, l.pin_code AS pin, l.address, l.opening_hours AS hours, l.phone FROM service_locations l LEFT JOIN location_services ls ON ls.location_id=l.id WHERE ${baseWhere} AND ls.service_name LIKE ?`, [like, like, like, `%${service}%`])
+      : await rows(`SELECT DISTINCT l.city, l.pin_code AS pin, l.address, l.opening_hours AS hours, l.phone FROM service_locations l LEFT JOIN location_services ls ON ls.location_id=l.id WHERE ${baseWhere}`, [like, like, like]);
+    const output = { count: locations.length, query, service: service || null, locations: locations.map((location) => ({ ...location, href: '/locations#location-finder' })), href: '/locations#location-finder' };
     return { output, call: { name: 'find_locations', label: `Checked ${query}`, output } };
   }
   if (name === 'lookup_services') { const query = String(args.query ?? ''); const list = await rows('SELECT name, slug, category AS eyebrow, summary, ideal_for AS idealFor FROM shipping_services WHERE ? = \'\' OR name LIKE ? OR summary LIKE ?', [query, `%${query}%`, `%${query}%`]); const output = { count: list.length, services: list.map((item) => ({ ...item, href: `/services/${item.slug}` })), href: '/services' }; return { output, call: { name: 'lookup_services', label: 'Listed services', output } }; }
