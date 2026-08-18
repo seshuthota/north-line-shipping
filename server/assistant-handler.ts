@@ -1,4 +1,4 @@
-import type { ChatFunctionTool, ChatMessages, ChatResult } from '@openrouter/sdk/models';
+import type { ChatFunctionTool, ChatMessages, ChatResult, ChatStreamChunk, ChatStreamToolCall } from '@openrouter/sdk/models';
 import { polishReply, shouldDeferItemEligibility } from '../src/assistant/replies.js';
 import { ASSISTANT_TOOLS, type AssistantToolCall } from '../src/assistant/tools.js';
 import { executeTursoTool } from './turso-tools.js';
@@ -202,6 +202,148 @@ export async function runAssistant(history: ChatTurn[]): Promise<AssistantReply>
     reply: 'I looked that up but ran out of steps. Try asking one thing at a time — tracking, a quote, or a city.',
     tools,
   };
+}
+
+export interface AssistantStreamCallbacks {
+  onStage?: (stage: 'thinking' | 'looking_up') => void;
+  onDelta?: (text: string) => void;
+  onReplace?: (text: string) => void;
+  onReset?: () => void;
+}
+
+interface ReassembledToolCall {
+  id: string;
+  name: string;
+  args: string;
+}
+
+/** Accumulate fragmented streaming tool-call deltas into complete calls, keyed by index. */
+export function reassembleToolCall(fragments: Map<number, ReassembledToolCall>, delta: ChatStreamToolCall): Map<number, ReassembledToolCall> {
+  const existing = fragments.get(delta.index) ?? { id: '', name: '', args: '' };
+  if (delta.id) existing.id = delta.id;
+  if (delta.function?.name) existing.name += delta.function.name;
+  if (delta.function?.arguments) existing.args += delta.function.arguments;
+  fragments.set(delta.index, existing);
+  return fragments;
+}
+
+async function streamModelRound(
+  client: ReturnType<typeof requireOpenRouter>,
+  messages: ChatMessages[],
+  callbacks: AssistantStreamCallbacks,
+  streamText: boolean,
+): Promise<{ content: string; toolCalls: ReassembledToolCall[] }> {
+  const stream = await client.chat.send({
+    ...openRouterApp,
+    chatRequest: {
+      model: CHAT_MODEL,
+      messages,
+      tools: OPENROUTER_TOOLS,
+      toolChoice: 'auto',
+      stream: true,
+      reasoningEffort: 'low',
+    },
+  });
+
+  let content = '';
+  const fragments = new Map<number, ReassembledToolCall>();
+
+  for await (const chunk of stream as unknown as AsyncIterable<ChatStreamChunk>) {
+    const choice = chunk.choices?.[0];
+    if (!choice) continue;
+    const delta = choice.delta;
+    if (delta?.content) {
+      content += delta.content;
+      if (streamText) callbacks.onDelta?.(delta.content);
+    }
+    for (const toolCall of delta?.toolCalls ?? []) {
+      reassembleToolCall(fragments, toolCall);
+    }
+  }
+
+  return { content, toolCalls: Array.from(fragments.values()) };
+}
+
+export async function runAssistantStream(history: ChatTurn[], callbacks: AssistantStreamCallbacks = {}): Promise<AssistantReply> {
+  const client = requireOpenRouter();
+  const messages = toMessages(history);
+  const tools: AssistantToolCall[] = [];
+  const userText = history.at(-1)?.content || '';
+
+  const route = routeAssistantRequest(userText);
+  if (route) {
+    const routed = await runDeterministicRoute(route.tool, route.args, userText);
+    if (routed) {
+      callbacks.onDelta?.(routed.reply);
+      return routed;
+    }
+  }
+
+  try {
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+      callbacks.onStage?.('thinking');
+      const streamText = tools.length === 0;
+      const { content, toolCalls } = await streamModelRound(client, messages, callbacks, streamText);
+
+      if (toolCalls.length > 0) {
+        if (streamText && content.trim()) callbacks.onReset?.();
+        messages.push({
+          role: 'assistant',
+          content: content || null,
+          toolCalls: toolCalls.map((toolCall) => ({
+            id: toolCall.id,
+            type: 'function',
+            function: { name: toolCall.name, arguments: toolCall.args },
+          })),
+        } as unknown as ChatMessages);
+
+        callbacks.onStage?.('looking_up');
+        const executed = await Promise.all(toolCalls.map((toolCall) => {
+          let parsed: Record<string, unknown> = {};
+          try {
+            parsed = toolCall.args ? JSON.parse(toolCall.args) : {};
+          } catch {
+            parsed = {};
+          }
+          return executeTursoTool(toolCall.name, parsed);
+        }));
+
+        for (let index = 0; index < toolCalls.length; index += 1) {
+          tools.push(executed[index].call);
+          messages.push({
+            role: 'tool',
+            toolCallId: toolCalls[index].id,
+            content: JSON.stringify(executed[index].output),
+          } as unknown as ChatMessages);
+        }
+
+        if (shouldDeferItemEligibility(userText, tools)) {
+          const reply = polishReply('', tools, userText) || 'I can’t confirm whether that item can be shipped. Please contact customer support by email.';
+          callbacks.onReplace?.(reply);
+          return { reply, tools };
+        }
+        continue;
+      }
+
+      const reply = polishReply(content.trim(), tools, userText)
+        || 'I can help with tracking, a price, or a pickup city.';
+      if (streamText) {
+        if (reply !== content.trim()) callbacks.onReplace?.(reply);
+      } else {
+        callbacks.onDelta?.(reply);
+      }
+      return { reply, tools };
+    }
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'assistant_run_error', message: error instanceof Error ? error.message : String(error) }));
+    const reply = 'I couldn’t confirm that right now. Please contact customer support by email.';
+    callbacks.onReplace?.(reply);
+    return { reply, tools };
+  }
+
+  const reply = 'I looked that up but ran out of steps. Try asking one thing at a time — tracking, a quote, or a city.';
+  callbacks.onReplace?.(reply);
+  return { reply, tools };
 }
 
 export async function transcribeAudio(data: string, format: string) {

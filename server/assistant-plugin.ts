@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { loadEnv, type Plugin } from 'vite';
-import { HISTORY_LIMIT, isAssistantConfigured, runAssistant, speakText, transcribeAudio, type ChatTurn } from './assistant-handler.js';
+import { HISTORY_LIMIT, isAssistantConfigured, runAssistant, runAssistantStream, speakText, transcribeAudio, type ChatTurn } from './assistant-handler.js';
 
 function loadAssistantEnv(root: string, mode: string) {
   const env = loadEnv(mode, root, '');
@@ -76,6 +76,51 @@ async function handleChat(req: IncomingMessage, res: ServerResponse) {
   }
 }
 
+async function handleChatStream(req: IncomingMessage, res: ServerResponse) {
+  let body: { messages?: ChatTurn[] };
+  try {
+    body = JSON.parse(await readBody(req) || '{}') as { messages?: ChatTurn[] };
+  } catch {
+    sendJson(res, 400, { error: 'Invalid JSON body' });
+    return;
+  }
+
+  const history = (Array.isArray(body.messages) ? body.messages : [])
+    .filter((item): item is ChatTurn => item && (item.role === 'user' || item.role === 'assistant') && typeof item.content === 'string')
+    .slice(-HISTORY_LIMIT);
+
+  if (!history.length || history[history.length - 1]?.role !== 'user') {
+    sendJson(res, 400, { error: 'Send at least one user message' });
+    return;
+  }
+
+  res.statusCode = 200;
+  res.setHeader('Content-Type', 'application/x-ndjson; charset=utf-8');
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const write = (event: Record<string, unknown>) => {
+    res.write(`${JSON.stringify(event)}\n`);
+  };
+
+  write({ type: 'stage', stage: 'started' });
+  try {
+    const result = await runAssistantStream(history, {
+      onStage: (stage) => write({ type: 'stage', stage }),
+      onDelta: (text) => write({ type: 'delta', text }),
+      onReplace: (text) => write({ type: 'replace', text }),
+      onReset: () => write({ type: 'reset' }),
+    });
+    write({ type: 'done', reply: result.reply, tools: result.tools });
+    res.end();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Assistant request failed';
+    write({ type: 'error', error: message });
+    res.end();
+  }
+}
+
 async function handleTranscribe(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== 'POST') {
     sendJson(res, 405, { error: 'Method not allowed' });
@@ -129,6 +174,10 @@ function attachAssistantRoute(middlewares: { use: Function; stack?: unknown[] })
     const url = pathOf(req.url) || pathOf((req as IncomingMessage & { originalUrl?: string }).originalUrl);
     if (url === '/api/chat') {
       void handleChat(req, res).catch(next);
+      return;
+    }
+    if (url === '/api/chat/stream') {
+      void handleChatStream(req, res).catch(next);
       return;
     }
     if (url === '/api/transcribe') {

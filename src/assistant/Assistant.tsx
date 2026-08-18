@@ -92,6 +92,8 @@ export function Assistant() {
   const [listening, setListening] = useState(false);
   const [voiceOn, setVoiceOn] = useState(() => saved.voiceOn !== false);
   const [error, setError] = useState('');
+  const [streamStage, setStreamStage] = useState('');
+  const [streamText, setStreamText] = useState('');
   const [, navigate] = useWouterLocation();
   const [messages, setMessages] = useState<ChatMessage[]>(() => (
     Array.isArray(saved.messages) && saved.messages.length ? saved.messages : [WELCOME]
@@ -166,6 +168,91 @@ export function Assistant() {
     }
   }
 
+  function stageLabel(stage: string) {
+    switch (stage) {
+      case 'thinking': return 'Working on your answer…';
+      case 'looking_up': return 'Looking up your shipment…';
+      case 'started': return 'Checking the network…';
+      default: return 'Checking the network…';
+    }
+  }
+
+  function buildRequestBody(nextMessages: ChatMessage[]) {
+    return JSON.stringify({
+      messages: nextMessages
+        .filter((item) => item.id !== 'welcome')
+        .map((item) => ({ role: item.role, content: item.content })),
+    });
+  }
+
+  function finalizeAssistant(reply: string, tools?: AssistantToolCall[]) {
+    setMessages((current) => [...current, { id: newId(), role: 'assistant', content: reply, tools }]);
+    setStreamText('');
+    setStreamStage('');
+    setPending(false);
+    void speak(reply);
+  }
+
+  async function sendJsonFallback(body: string) {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+    const payload = await response.json() as { reply?: string; tools?: AssistantToolCall[]; error?: string };
+    if (!response.ok) {
+      setError(payload.error || 'The assistant is unavailable right now.');
+      setPending(false);
+      setStreamStage('');
+      setStreamText('');
+      return;
+    }
+    finalizeAssistant(payload.reply || 'I did not get a reply that time.', payload.tools);
+  }
+
+  async function consumeStream(body: ReadableStream<Uint8Array>) {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let finalReply = '';
+    let finalTools: AssistantToolCall[] | undefined;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() ?? '';
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let event: Record<string, unknown>;
+        try {
+          event = JSON.parse(line) as Record<string, unknown>;
+        } catch {
+          continue;
+        }
+        switch (event.type) {
+          case 'stage': setStreamStage(String(event.stage ?? '')); break;
+          case 'delta': setStreamText((current) => current + String(event.text ?? '')); break;
+          case 'replace': setStreamText(String(event.text ?? '')); break;
+          case 'reset': setStreamText(''); break;
+          case 'done':
+            finalReply = String(event.reply ?? '');
+            finalTools = Array.isArray(event.tools) ? event.tools as AssistantToolCall[] : undefined;
+            break;
+          case 'error':
+            setError(String(event.error ?? 'The assistant is unavailable right now.'));
+            setStreamStage('');
+            setStreamText('');
+            setPending(false);
+            return;
+          default: break;
+        }
+      }
+    }
+    finalizeAssistant(finalReply || 'I did not get a reply that time.', finalTools);
+  }
+
   async function send(text: string) {
     const content = text.trim();
     if (!content || pending) return;
@@ -174,33 +261,31 @@ export function Assistant() {
     setInput('');
     setPending(true);
     setError('');
+    setStreamStage('started');
+    setStreamText('');
+
+    const body = buildRequestBody(nextMessages);
+
     try {
-      const response = await fetch('/api/chat', {
+      const response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: nextMessages
-            .filter((item) => item.id !== 'welcome')
-            .map((item) => ({ role: item.role, content: item.content })),
-        }),
+        body,
       });
-      const payload = await response.json() as { reply?: string; tools?: AssistantToolCall[]; error?: string };
-      if (!response.ok) {
-        setError(payload.error || 'The assistant is unavailable right now.');
+      if (!response.ok || !response.body) {
+        await sendJsonFallback(body);
         return;
       }
-      const reply = payload.reply || 'I did not get a reply that time.';
-      setMessages((current) => [...current, {
-        id: newId(),
-        role: 'assistant',
-        content: reply,
-        tools: payload.tools,
-      }]);
-      void speak(reply);
+      await consumeStream(response.body);
     } catch {
-      setError('Could not reach the assistant. Is the dev server running?');
-    } finally {
-      setPending(false);
+      try {
+        await sendJsonFallback(body);
+      } catch {
+        setError('Could not reach the assistant. Is the dev server running?');
+        setPending(false);
+        setStreamStage('');
+        setStreamText('');
+      }
     }
   }
 
@@ -339,7 +424,7 @@ export function Assistant() {
           </article>
         ))}
         {listening && <div className="assistant-bubble assistant pending"><Mic size={16} /> Listening… tap the mic to send</div>}
-        {pending && !listening && <div className="assistant-bubble assistant pending"><LoaderCircle className="spin" size={16} /> Checking the network…</div>}
+        {pending && !listening && <div className="assistant-bubble assistant pending"><LoaderCircle className="spin" size={16} /> {streamText || stageLabel(streamStage)}</div>}
         {error && <div className="assistant-error">{error}</div>}
         {configured === false && (
           <div className="assistant-setup">
