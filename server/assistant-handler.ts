@@ -18,6 +18,8 @@ How to talk:
 - Never use markdown tables, bullet dumps, JSON, or the word href.
 - Never repeat prices, addresses, hours, or ETAs in full — the screen already shows a card.
 - Don’t pitch follow-ups unless they ask.
+- If the customer asks about a specific item and no tool explicitly confirms that item’s eligibility, do not infer from a general guide or service list. Say that customer support should confirm it directly by email.
+- If the tools do not provide a clear answer, do not guess or make a definitive claim. Say that customer support should confirm it directly by email.
 - This is a demo. Don’t pretend you booked anything.
 
 Examples of good replies:
@@ -97,49 +99,57 @@ export async function runAssistant(history: ChatTurn[]): Promise<AssistantReply>
   const messages = toMessages(history);
   const tools: AssistantToolCall[] = [];
 
-  for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
-    const result = await client.chat.send({
-      ...openRouterApp,
-      chatRequest: {
-        model: CHAT_MODEL,
-        messages,
-        tools: OPENROUTER_TOOLS,
-        toolChoice: 'auto',
-        stream: false,
-        reasoningEffort: 'low',
-      },
-    });
-
-    if (!isChatResult(result)) {
-      throw new Error('Unexpected streaming response from OpenRouter');
-    }
-
-    const message = result.choices[0]?.message;
-    if (!message) break;
-    messages.push(message);
-
-    const calls = message.toolCalls ?? [];
-    if (calls.length === 0) {
-      const reply = polishReply(messageText(message.content), tools)
-        || 'I can help with tracking, a price, or a pickup city.';
-      return { reply, tools };
-    }
-
-    for (const call of calls) {
-      let parsed: unknown = {};
-      try {
-        parsed = call.function.arguments ? JSON.parse(call.function.arguments) : {};
-      } catch {
-        parsed = {};
-      }
-      const executed = await executeTursoTool(call.function.name, (parsed && typeof parsed === 'object' ? parsed : {}) as Record<string, unknown>);
-      tools.push(executed.call);
-      messages.push({
-        role: 'tool',
-        toolCallId: call.id,
-        content: JSON.stringify(executed.output),
+  try {
+    for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+      const result = await client.chat.send({
+        ...openRouterApp,
+        chatRequest: {
+          model: CHAT_MODEL,
+          messages,
+          tools: OPENROUTER_TOOLS,
+          toolChoice: 'auto',
+          stream: false,
+          reasoningEffort: 'low',
+        },
       });
+
+      if (!isChatResult(result)) {
+        throw new Error('Unexpected streaming response from OpenRouter');
+      }
+
+      const message = result.choices[0]?.message;
+      if (!message) break;
+      messages.push(message);
+
+      const calls = message.toolCalls ?? [];
+      if (calls.length === 0) {
+        const reply = polishReply(messageText(message.content), tools, history.at(-1)?.content || '')
+          || 'I can help with tracking, a price, or a pickup city.';
+        return { reply, tools };
+      }
+
+      for (const call of calls) {
+        let parsed: unknown = {};
+        try {
+          parsed = call.function.arguments ? JSON.parse(call.function.arguments) : {};
+        } catch {
+          parsed = {};
+        }
+        const executed = await executeTursoTool(call.function.name, (parsed && typeof parsed === 'object' ? parsed : {}) as Record<string, unknown>);
+        tools.push(executed.call);
+        messages.push({
+          role: 'tool',
+          toolCallId: call.id,
+          content: JSON.stringify(executed.output),
+        });
+      }
     }
+  } catch (error) {
+    console.error(JSON.stringify({ event: 'assistant_run_error', message: error instanceof Error ? error.message : String(error) }));
+    return {
+      reply: 'I couldn’t confirm that right now. Please contact customer support by email.',
+      tools,
+    };
   }
 
   return {

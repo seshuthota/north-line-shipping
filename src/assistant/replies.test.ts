@@ -36,4 +36,13 @@ describe('assistant replies', () => {
     expect(reply).not.toContain('|');
     expect(reply.length).toBeLessThan(180);
   });
+
+  it('defers item eligibility when only a general guide was used', () => {
+    const reply = polishReply('These can’t travel with us.', [{
+      name: 'get_shipping_guide',
+      label: 'Opened restricted guide',
+      output: { title: 'Banned and restricted commodities', points: ['Firearms'] },
+    }], 'Can I ship a motorcycle?');
+    expect(reply).toContain('contact customer support by email');
+  });
 });

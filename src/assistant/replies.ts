@@ -70,7 +70,11 @@ export function captionForTools(tools: AssistantToolCall[]) {
   return '';
 }
 
-export function polishReply(reply: string, tools: AssistantToolCall[]) {
+export function polishReply(reply: string, tools: AssistantToolCall[], userText = '') {
+  if (/\b(can|may|allowed|okay| ok|permitted|accepted)\b.*\b(ship|send|mail|parcel|item)\b|\b(ship|send|mail)\b.*\b(item|motorcycle|battery|perfume|goods?)\b/i.test(userText)
+    && tools.some((tool) => tool.name === 'get_shipping_guide')) {
+    return 'I can’t confirm whether that item can be shipped. Please contact customer support by email and they’ll let you know.';
+  }
   const caption = captionForTools(tools);
   if (caption) return caption;
   const cleaned = reply.trim();
