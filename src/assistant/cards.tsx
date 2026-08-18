@@ -10,6 +10,17 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? value as Record<string, unknown> : null;
 }
 
+function quoteToolHref(data: Record<string, unknown>) {
+  const params = new URLSearchParams();
+  for (const key of ['mode', 'from', 'to', 'actualWeightKg']) {
+    const value = data[key];
+    if (value !== undefined && value !== null && String(value)) {
+      params.set(key === 'actualWeightKg' ? 'weight' : key, String(value));
+    }
+  }
+  return `/ship?${params.toString()}#quote`;
+}
+
 function QuoteCards({ data }: { data: Record<string, unknown> }) {
   const options = Array.isArray(data.options) ? data.options as { service: string; eta: string; price: number; badge?: string }[] : [];
   if (!options.length) return null;
@@ -30,7 +41,7 @@ function QuoteCards({ data }: { data: Record<string, unknown> }) {
           </div>
         ))}
       </div>
-      <Link className="assist-card-link" to="/ship#quote">See the quote tool <ArrowRight size={14} /></Link>
+      <Link className="assist-card-link" to={quoteToolHref(data)}>See the quote tool <ArrowRight size={14} /></Link>
     </div>
   );
 }
@@ -150,13 +161,19 @@ function SupportCard({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-export function SupportFallbackCard() {
+export function SupportFallbackCard({ question = '' }: { question?: string }) {
+  const params = new URLSearchParams();
+  if (question.trim()) {
+    params.set('message', `I need help confirming this shipment question:\n${question.trim()}`);
+  }
+  params.set('topic', 'Feedback');
+  const href = `/support?${params.toString()}#contact`;
   return (
     <div className="assist-card">
       <div className="assist-card-kicker">Customer support</div>
       <strong>1800 555 0142</strong>
       <div className="assist-meta"><Clock3 size={13} /> Mon–Sat · 8 AM–8 PM</div>
-      <Link className="assist-card-link" to="/support#contact">Open the support form <ArrowRight size={14} /></Link>
+      <Link className="assist-card-link" to={href}>Open pre-filled support form <ArrowRight size={14} /></Link>
     </div>
   );
 }

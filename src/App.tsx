@@ -227,8 +227,21 @@ function TrackPage() {
     </div></section></>;
 }
 
+function quoteFormDefaults() {
+  const params = new URLSearchParams(typeof window === 'undefined' ? '' : window.location.search);
+  const mode: 'domestic' | 'international' = params.get('mode') === 'international' ? 'international' : 'domestic';
+  const weight = Number(params.get('weight'));
+  return {
+    mode,
+    from: params.get('from') || 'Mumbai',
+    to: params.get('to') || 'New Delhi',
+    weight: Number.isFinite(weight) && weight > 0 ? String(weight) : '2',
+  };
+}
+
 function ShipPage() {
-  const [mode, setMode] = useState<'domestic' | 'international'>('domestic'); const [from, setFrom] = useState('Mumbai'); const [to, setTo] = useState('New Delhi'); const [weight, setWeight] = useState('2'); const [showDimensions, setShowDimensions] = useState(false); const [dimensions, setDimensions] = useState({ length: '30', width: '20', height: '15' }); const [quotes, setQuotes] = useState<QuoteResult[]>([]); const [loading, setLoading] = useState(false);
+  const defaults = useMemo(quoteFormDefaults, []);
+  const [mode, setMode] = useState<'domestic' | 'international'>(defaults.mode); const [from, setFrom] = useState(defaults.from); const [to, setTo] = useState(defaults.to); const [weight, setWeight] = useState(defaults.weight); const [showDimensions, setShowDimensions] = useState(false); const [dimensions, setDimensions] = useState({ length: '30', width: '20', height: '15' }); const [quotes, setQuotes] = useState<QuoteResult[]>([]); const [loading, setLoading] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
   const dimensionsRef = useRef<HTMLDivElement>(null);
   const volumetric = calculateVolumetricWeight(Number(dimensions.length), Number(dimensions.width), Number(dimensions.height)); const chargeable = Math.max(Number(weight) || 0, showDimensions ? volumetric : 0);
@@ -289,7 +302,11 @@ const faqs = [
 ];
 
 function SupportPage() {
+  const location = useLocation();
+  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const [openFaq, setOpenFaq] = useState<number | null>(0); const [sent, setSent] = useState(false);
+  const [topic, setTopic] = useState(() => params.get('topic') || '');
+  const [message, setMessage] = useState(() => params.get('message') || '');
   const successRef = useRef<HTMLDivElement>(null);
   const faqItemRefs = useRef<(HTMLDivElement | null)[]>([]);
   useScrollOn(sent, successRef);
@@ -301,7 +318,7 @@ function SupportPage() {
   }
   return <><PageHero eyebrow="HELP CENTRE" title="Answers that move things forward." copy="Quick guidance, expert support and practical tools for every part of your shipment journey." /><section className="support-shortcuts"><div className="container"><Link to="/track#track-form"><PackageSearch /><strong>Track a shipment</strong><ArrowRight /></Link><Link to="/locations#location-finder"><MapPin /><strong>Find a location</strong><ArrowRight /></Link><Link to="/support/regulatory"><ShieldCheck /><strong>Check restrictions</strong><ArrowRight /></Link><a href="tel:18005550142"><Headphones /><strong>Call customer service</strong><ArrowRight /></a></div></section>
     <section className="section" id="faq"><div className="container faq-layout"><div><SectionIntro eyebrow="FREQUENTLY ASKED" title="A quick answer may be all you need." copy="The most useful answers to common shipping questions." /><Link to="/support/regulatory" className="text-link">View complete shipping guide <ArrowRight /></Link></div><div className="accordion">{faqs.map(([question, answer], index) => <div ref={(el) => { faqItemRefs.current[index] = el; }} className={`accordion-item ${openFaq === index ? 'open' : ''}`} key={question}><button onClick={() => toggleFaq(index)} aria-expanded={openFaq === index}><span>{question}</span><ChevronDown /></button>{openFaq === index && <p>{answer}</p>}</div>)}</div></div></section>
-    <section className="section subtle" id="contact"><div className="container contact-layout"><div><SectionIntro eyebrow="STILL NEED A HAND?" title="Tell us what happened." copy="Share the details below and our demo support flow will show you what happens next." /><div className="contact-details"><div><Headphones /><span><small>CENTRALIZED CUSTOMER SERVICE</small><strong>1800 555 0142</strong></span></div><div><Clock3 /><span><small>AVAILABLE</small><strong>Mon–Sat · 8 AM–8 PM</strong></span></div></div></div>{sent ? <div ref={successRef} className="success-card" tabIndex={-1}><CheckCircle2 /><h3>Thanks—we’ve received your message.</h3><p>This is a local demonstration, so no information was transmitted. In production, you would receive a case number here.</p><button className="button button-outline" onClick={() => setSent(false)}>Send another message</button></div> : <form id="contact-form" className="contact-form" onSubmit={submit}><div className="form-grid"><label>Name *<input required placeholder="Your full name" /></label><label>Email *<input required type="email" placeholder="you@company.com" /></label></div><label>Waybill number<input placeholder="Optional" /></label><label>How can we help? *<select required defaultValue=""><option value="" disabled>Choose a topic</option><option>Delivery status</option><option>Pickup or booking</option><option>Billing and account</option><option>Feedback</option></select></label><label>Message *<textarea required rows={5} placeholder="Include any details that may help us understand the issue." /></label><button className="button button-wide">Submit request <Send /></button><small className="privacy-note"><LockKeyhole /> Your details stay in this browser. Nothing is transmitted.</small></form>}</div></section></>;
+    <section className="section subtle" id="contact"><div className="container contact-layout"><div><SectionIntro eyebrow="STILL NEED A HAND?" title="Tell us what happened." copy="Share the details below and our demo support flow will show you what happens next." /><div className="contact-details"><div><Headphones /><span><small>CENTRALIZED CUSTOMER SERVICE</small><strong>1800 555 0142</strong></span></div><div><Clock3 /><span><small>AVAILABLE</small><strong>Mon–Sat · 8 AM–8 PM</strong></span></div></div></div>{sent ? <div ref={successRef} className="success-card" tabIndex={-1}><CheckCircle2 /><h3>Thanks—we’ve received your message.</h3><p>This is a local demonstration, so no information was transmitted. In production, you would receive a case number here.</p><button className="button button-outline" onClick={() => setSent(false)}>Send another message</button></div> : <form id="contact-form" className="contact-form" onSubmit={submit}><div className="form-grid"><label>Name *<input required placeholder="Your full name" /></label><label>Email *<input required type="email" placeholder="you@company.com" /></label></div><label>Waybill number<input placeholder="Optional" /></label><label>How can we help? *<select required value={topic} onChange={(event) => setTopic(event.target.value)}><option value="" disabled>Choose a topic</option><option>Delivery status</option><option>Pickup or booking</option><option>Billing and account</option><option>Feedback</option></select></label><label>Message *<textarea required rows={5} value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Include any details that may help us understand the issue." /></label><button className="button button-wide">Submit request <Send /></button><small className="privacy-note"><LockKeyhole /> Your details stay in this browser. Nothing is transmitted.</small></form>}</div></section></>;
 }
 
 function RegulatoryPage() {

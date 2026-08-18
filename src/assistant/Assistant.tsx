@@ -334,7 +334,7 @@ export function Assistant() {
           <article key={message.id} className={`assistant-bubble ${message.role}`}>
             {message.content && <p>{renderContent(message.content)}</p>}
             {message.role === 'assistant' && <ToolResultCards tools={message.tools} suppressGuides={shouldDeferItemEligibility(messages[messages.indexOf(message) - 1]?.content || '', message.tools || [])} />}
-            {message.role === 'assistant' && message.content.includes('contact customer support') && !message.tools?.some((tool) => tool.name === 'get_support_info') && <SupportFallbackCard />}
+            {message.role === 'assistant' && message.content.includes('contact customer support') && !message.tools?.some((tool) => tool.name === 'get_support_info') && <SupportFallbackCard question={messages[messages.indexOf(message) - 1]?.content || ''} />}
             {message.role === 'assistant' && <EmptyLocationNote tools={message.tools} />}
           </article>
         ))}
