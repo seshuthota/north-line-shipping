@@ -3,7 +3,7 @@ import { polishReply, shouldDeferItemEligibility } from '../src/assistant/replie
 import { ASSISTANT_TOOLS, type AssistantToolCall } from '../src/assistant/tools.js';
 import { executeTursoTool } from './turso-tools.js';
 import { routeAssistantRequest } from './assistant-routing.js';
-import { CHAT_MODEL, STT_MODEL, TTS_MODEL, TTS_VOICE, isAssistantConfigured, openRouterApp, requireOpenRouter } from './openrouter.js';
+import { CHAT_FALLBACK_MODEL, CHAT_MODEL, STT_MODEL, TTS_MODEL, TTS_VOICE, isAssistantConfigured, openRouterApp, requireOpenRouter } from './openrouter.js';
 
 export { isAssistantConfigured };
 
@@ -128,17 +128,33 @@ export async function runAssistant(history: ChatTurn[]): Promise<AssistantReply>
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
       const modelStarted = performance.now();
-      const result = await client.chat.send({
-        ...openRouterApp,
-        chatRequest: {
-          model: CHAT_MODEL,
-          messages,
-          tools: OPENROUTER_TOOLS,
-          toolChoice: 'auto',
-          stream: false,
-          reasoningEffort: 'low',
-        },
-      });
+      let result: Awaited<ReturnType<typeof client.chat.send>>;
+      try {
+        result = await client.chat.send({
+          ...openRouterApp,
+          chatRequest: {
+            model: CHAT_MODEL,
+            messages,
+            tools: OPENROUTER_TOOLS,
+            toolChoice: 'auto',
+            stream: false,
+            reasoningEffort: 'low',
+          },
+        });
+      } catch (primaryError) {
+        console.error(JSON.stringify({ event: 'assistant_model_fallback', from: CHAT_MODEL, to: CHAT_FALLBACK_MODEL, message: primaryError instanceof Error ? primaryError.message : String(primaryError) }));
+        result = await client.chat.send({
+          ...openRouterApp,
+          chatRequest: {
+            model: CHAT_FALLBACK_MODEL,
+            messages,
+            tools: OPENROUTER_TOOLS,
+            toolChoice: 'auto',
+            stream: false,
+            reasoningEffort: 'low',
+          },
+        });
+      }
       modelMs += performance.now() - modelStarted;
       modelRounds += 1;
 
@@ -232,11 +248,12 @@ async function streamModelRound(
   messages: ChatMessages[],
   callbacks: AssistantStreamCallbacks,
   streamText: boolean,
+  model: string,
 ): Promise<{ content: string; toolCalls: ReassembledToolCall[] }> {
   const stream = await client.chat.send({
     ...openRouterApp,
     chatRequest: {
-      model: CHAT_MODEL,
+      model,
       messages,
       tools: OPENROUTER_TOOLS,
       toolChoice: 'auto',
@@ -264,6 +281,21 @@ async function streamModelRound(
   return { content, toolCalls: Array.from(fragments.values()) };
 }
 
+async function streamModelRoundWithFallback(
+  client: ReturnType<typeof requireOpenRouter>,
+  messages: ChatMessages[],
+  callbacks: AssistantStreamCallbacks,
+  streamText: boolean,
+) {
+  try {
+    return await streamModelRound(client, messages, callbacks, streamText, CHAT_MODEL);
+  } catch (primaryError) {
+    console.error(JSON.stringify({ event: 'assistant_model_fallback', from: CHAT_MODEL, to: CHAT_FALLBACK_MODEL, message: primaryError instanceof Error ? primaryError.message : String(primaryError) }));
+    callbacks.onReset?.();
+    return streamModelRound(client, messages, callbacks, streamText, CHAT_FALLBACK_MODEL);
+  }
+}
+
 export async function runAssistantStream(history: ChatTurn[], callbacks: AssistantStreamCallbacks = {}): Promise<AssistantReply> {
   const client = requireOpenRouter();
   const messages = toMessages(history);
@@ -283,7 +315,7 @@ export async function runAssistantStream(history: ChatTurn[], callbacks: Assista
     for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
       callbacks.onStage?.('thinking');
       const streamText = tools.length === 0;
-      const { content, toolCalls } = await streamModelRound(client, messages, callbacks, streamText);
+      const { content, toolCalls } = await streamModelRoundWithFallback(client, messages, callbacks, streamText);
 
       if (toolCalls.length > 0) {
         if (streamText && content.trim()) callbacks.onReset?.();

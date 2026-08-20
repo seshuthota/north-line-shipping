@@ -1,5 +1,43 @@
-import { describe, expect, it } from 'vitest';
-import { reassembleToolCall } from './assistant-handler';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+const chatSend = vi.hoisted(() => vi.fn());
+
+vi.mock('./openrouter', async () => {
+  const actual = await vi.importActual<typeof import('./openrouter')>('./openrouter');
+  return {
+    ...actual,
+    requireOpenRouter: () => ({ chat: { send: chatSend } }),
+  };
+});
+
+import { reassembleToolCall, runAssistant } from './assistant-handler';
+import { CHAT_FALLBACK_MODEL, CHAT_MODEL } from './openrouter';
+
+beforeEach(() => {
+  chatSend.mockReset();
+});
+
+it('uses the free chat model first and Gemini as the fallback', () => {
+  expect(CHAT_MODEL).toMatch(/:free$/);
+  expect(CHAT_FALLBACK_MODEL).toBe('google/gemini-3.7-flash');
+});
+
+it('returns the fallback response when the free chat model fails', async () => {
+  chatSend
+    .mockRejectedValueOnce(new Error('free model unavailable'))
+    .mockResolvedValueOnce({
+      choices: [{ message: { content: 'Fallback response', toolCalls: [] } }],
+    });
+
+  const result = await runAssistant([{ role: 'user', content: 'Hello' }]);
+
+  expect(result.reply).toBe('Fallback response');
+  expect(chatSend).toHaveBeenCalledTimes(2);
+  expect(chatSend.mock.calls.map(([request]) => request.chatRequest.model)).toEqual([
+    CHAT_MODEL,
+    CHAT_FALLBACK_MODEL,
+  ]);
+});
 
 describe('assistant streaming tool reassembly', () => {
   it('accumulates fragmented tool call deltas by index', () => {

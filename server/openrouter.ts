@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { OpenRouter } from '@openrouter/sdk';
 
 export const CHAT_MODEL = 'google/gemma-4-31b-it:free';
+export const CHAT_FALLBACK_MODEL = 'google/gemini-3.7-flash';
 export const TTS_MODEL = 'deepgram/flux-tts:free';
 export const TTS_VOICE = 'flux-alexis-en';
 export const STT_MODEL = 'mistralai/voxtral-small-24b-2507-stt';
